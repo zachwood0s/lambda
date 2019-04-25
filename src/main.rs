@@ -1,8 +1,11 @@
 
 #[macro_use]
 extern crate clap;
-
 use clap::{Arg, App};
+
+pub mod lexer;
+pub mod parser;
+pub mod repl;
 
 arg_enum!{
     enum Mode{
@@ -29,7 +32,7 @@ fn main(){
                     .get_matches();
 
     match value_t!(matches.value_of("MODE"), Mode).unwrap(){
-        Mode::Repl => println!("chose repl mode"),
+        Mode::Repl => repl::start(),
         Mode::Make => println!("chose make mode"),
     }
 }

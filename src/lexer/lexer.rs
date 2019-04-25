@@ -115,7 +115,7 @@ fn is_letter_test(){
 
 #[test]
 fn next_token_test(){
-    let input = r#"fake_identifier: Int = \a. \b. (b c) 109"#;
+    let input = r#"fake_identifier: Int = \a. \b. (b c) 109   "#;
 
     let expected = vec![
         Token::LIdent("fake_identifier".to_string()),
@@ -132,7 +132,8 @@ fn next_token_test(){
         Token::LIdent("b".to_string()),
         Token::LIdent("c".to_string()),
         Token::RParen,
-        Token::Integer("109".to_string())
+        Token::Integer("109".to_string()),
+        Token::EOF
     ];
 
     let mut lexer = Lexer::new(input);

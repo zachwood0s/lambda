@@ -24,7 +24,7 @@ impl<'a> Parser<'a>{
                 GrammarItem::Program(assignments),
                 Type::Unknown
             )),
-            _ => Err(0)     //Expected EOF
+            _ => Err(0)     //Expected EOF  
         }
         /*
         self.parse_toplevel_assignment().and_then(
