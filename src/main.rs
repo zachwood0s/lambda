@@ -1,6 +1,7 @@
 
 #[macro_use]
 extern crate clap;
+extern crate colored;
 use clap::{Arg, App};
 
 pub mod lexer;

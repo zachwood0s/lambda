@@ -1,3 +1,4 @@
+
 use std::io;
 use std::io::Write;
 use lexer::Lexer;
@@ -6,54 +7,87 @@ use parser::Visitor;
 use parser::ParseNode;
 use parser::GrammarItem;
 
-static INDENT_AMOUNT : i32 = 4;
+use colored::*;
+
+static INDENT_AMOUNT : i32 = 2;
 
 struct PrintVisitor{
     current_indent: i32
 }
 
 impl PrintVisitor {
-    fn print_indent(&self){
-        print!("{}", " ".repeat((self.current_indent * INDENT_AMOUNT) as usize));
-    }
+  fn new() -> PrintVisitor{
+    PrintVisitor{current_indent: 0}
+  } 
+  fn print_indent(&self){
+      print!("{}", " ".repeat((self.current_indent * INDENT_AMOUNT) as usize));
+  }
 }
 
 impl Visitor<()> for PrintVisitor{
-    fn visit(&mut self, n: &ParseNode){
+  fn visit_literal_int(&mut self, i: &ParseNode){
+    if let GrammarItem::LiteralInt(val) = i.entry {
+      self.print_indent();
+      println!("{} {}", "Literal Int:".green(), val.to_string().red());
+    }
+  }
+
+  fn visit_variable(&mut self, i: &ParseNode){
+    if let GrammarItem::Variable(ref val) = i.entry {
+      self.print_indent();
+      println!("{} {}", "Variable:".green(), val.cyan());
+    }
+  }
+
+  fn visit_abstraction(&mut self, i: &ParseNode){
+    if let GrammarItem::Abstraction(ref name, ref body) = i.entry {
+      self.print_indent();
+      println!("{} {}", "Abstraction:".green(), name.cyan());
+      self.current_indent += 1;
+      self.visit(body);
+      self.current_indent -= 1;
+    }
+  }
+
+  fn visit_application(&mut self, i: &ParseNode){
+    if let GrammarItem::Application(ref left, ref right) = i.entry {
+      self.print_indent();
+      println!("{}", "Application:".green());
+      self.print_indent();
+      println!("{}", "-Left:".green());
+      self.current_indent += 1;
+      self.visit(left);
+      self.current_indent -= 1;
+      self.print_indent();
+      println!("{}", "-Right:".green());
+      self.current_indent += 1;
+      self.visit(right);
+      self.current_indent -= 1;
 
     }
+  }
 
-    fn visit_literal_int(&mut self, i: &ParseNode){
-        if let GrammarItem::LiteralInt(val) = i.entry {
-            self.print_indent();
-            println!("Literal Int: {}", val);
-        }
+  fn visit_assignment(&mut self, i: &ParseNode){
+    if let GrammarItem::Assignment(ref name, ref expr) = i.entry {
+      self.print_indent();
+      println!("Assignment -> {}", name);
+      self.current_indent += 1;
+      self.visit(expr);
+      self.current_indent -= 1;
     }
+  }
 
-    fn visit_variable(&mut self, i: &ParseNode){
-        if let GrammarItem::Variable(ref val) = i.entry {
-            self.print_indent();
-            println!("Variable: {}", val);
-        }
+  fn visit_program(&mut self, i: &ParseNode){
+    if let GrammarItem::Program(ref children) = i.entry {
+      self.print_indent();
+      println!("AST:");
+      self.current_indent += 1;
+      for child in children  {
+        self.visit(&child);
+      }
+      self.current_indent -= 1;
     }
-
-    fn visit_abstraction(&mut self, i: &ParseNode){
-        if let GrammarItem::Abstraction(ref name, ref body) = i.entry {
-            self.print_indent();
-            println!("Abstraction: {}", name);
-            println!("-Body:");
-            self.current_indent+=1;
-        }
-    }
-
-    fn visit_application(&mut self, i: &ParseNode){
-    }
-
-    fn visit_assignment(&mut self, i: &ParseNode){
-    }
-
-    fn visit_program(&mut self, i: &ParseNode){
-    }
+  }
 }
 
 pub fn start(){
@@ -76,9 +110,10 @@ fn main_loop(){
   println!("{}", input);
   let lexer = Lexer::new(input.as_str());
   let mut parser = Parser::new(lexer);
+  let mut printer = PrintVisitor::new();
 
   match parser.parse(){
-    Ok(ast) => println!("{:?}", ast),
+    Ok(ast) => printer.visit(&ast),
     Err(e) => println!("Error parsing: {:?}",e)
   }
 }

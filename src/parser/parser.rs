@@ -64,6 +64,7 @@ impl<'a> Parser<'a>{
         match tok {
             Token::LParen => self.parse_paren_expr(),
             Token::LIdent(id) => self.parse_identifier_expr(id),
+            Token::Integer(s) => self.parse_literal_int(s),
             Token::Backslash => self.parse_abstraction_expr(),
             Token::Illegal => Err(5),   //Illegal token
             Token::EOF => Err(6),       //Unexpected EOF
@@ -84,6 +85,13 @@ impl<'a> Parser<'a>{
                 }
             }
         )
+    }
+
+    fn parse_literal_int(&mut self, num_string: String) -> Result<ParseNode, i32>{
+        match num_string.parse() {
+            Ok(num) => Ok(ParseNode::new(GrammarItem::LiteralInt(num), Type::Unknown)),
+            Err(_) => Err(8)
+        }
     }
 
     fn parse_identifier_expr(&mut self, id: String) -> Result<ParseNode, i32>{
@@ -111,7 +119,7 @@ impl<'a> Parser<'a>{
     fn parse_expr_prime(&mut self, left: ParseNode) -> Result<ParseNode, i32>{
         let tok = self.lexer.next_token();
         match tok {
-            Token::LParen | Token::Backslash | Token::LIdent(_) => {
+            Token::LParen | Token::Backslash | Token::LIdent(_) | Token::Integer(_) => {
                 self.lexer.put_back(tok);
                 self.parse_base_expr().and_then(
                     |expr| self.parse_expr_prime(ParseNode::new(
