@@ -18,8 +18,8 @@ pub enum Type{
 
 #[derive(Debug, PartialEq)]
 pub struct ParseNode{
-    entry: GrammarItem,
-    node_type: Type
+    pub entry: GrammarItem,
+    pub node_type: Type
 }
 
 impl ParseNode{
