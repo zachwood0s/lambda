@@ -14,6 +14,10 @@ impl<'a> Parser<'a>{
         Parser { lexer: input }
     }
 
+    pub fn reset_lexer(&mut self){
+        self.lexer.reset();
+    }
+
     pub fn parse(&mut self) -> Result<ParseNode, i32>{
         let mut assignments: Vec<ParseNode> = Vec::new();
         while let Ok(assign) = self.parse_toplevel_assignment() {
@@ -53,7 +57,7 @@ impl<'a> Parser<'a>{
     }
     
 
-    fn parse_expr(&mut self) -> Result<ParseNode, i32>{
+    pub fn parse_expr(&mut self) -> Result<ParseNode, i32>{
         self.parse_base_expr().and_then(
             |expr| self.parse_expr_prime(expr)
         )

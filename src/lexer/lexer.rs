@@ -4,13 +4,18 @@ use std::str::Chars;
 use std::iter::Peekable;
 
 pub struct Lexer<'a>{
+    cached_str: &'a str,
     input: Peekable<Chars<'a>>,
     cache: Vec<Token>
 }
 
 impl<'a> Lexer<'a>{
     pub fn new(input: &str) -> Lexer{
-        Lexer {input: input.chars().peekable(), cache: Vec::new()}
+        Lexer {input: input.chars().peekable(), cache: Vec::new(), cached_str: input}
+    }
+
+    pub fn reset(&mut self){
+        self.input = self.cached_str.chars().peekable();
     }
 
     pub fn put_back(&mut self, token: Token){
