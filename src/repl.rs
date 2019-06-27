@@ -1,12 +1,14 @@
-
 use std::io;
 use std::io::Write;
+use dialoguer::{theme::ColorfulTheme, theme::CustomPromptCharacterTheme, Checkboxes, Input};
+use colored::*;
+
 use lexer::Lexer;
 use parser::Parser;
 use parser::Visitor;
 use parser::ParseNode;
 use parser::GrammarItem;
-use colored::*;
+
 
 static INDENT_AMOUNT : i32 = 2;
 
@@ -115,14 +117,11 @@ impl<'a> Prompt<'a>{
     self
   }
 
-  fn show(self) -> PromptResult {
-    let mut input = String::new();
-    print!("> ");
-    io::stdout().flush().unwrap();
-
-    io::stdin().read_line(&mut input)
-      .ok()
-      .expect("Couldn't read line");
+  fn show(&self) -> PromptResult {
+    let theme = CustomPromptCharacterTheme::new('>');
+    let input: String = Input::with_theme(&theme)
+      .interact()
+      .unwrap();
 
     let input = input.trim().to_string();
 
@@ -133,7 +132,7 @@ impl<'a> Prompt<'a>{
     }
   }
 
-  fn handle_command(self, input: String) -> PromptResult {
+  fn handle_command(&self, input: String) -> PromptResult {
     let command_parts = &input[1..].split(" ").collect::<Vec<_>>();
     let command_string = command_parts[0].to_string();
 
@@ -146,7 +145,7 @@ impl<'a> Prompt<'a>{
         |x| x.name == command_string || x.short_name == Some(&command_string));
       
       match option {
-        Some(command) => PromptResult::Command(command.name.to_string(), Some(command_parts[1..].join(" "))),
+        Some(command) => PromptResult::Command(command.name.to_uppercase(), Some(command_parts[1..].join(" "))),
         None => PromptResult::InvalidCommand
       }
     }
@@ -162,7 +161,7 @@ struct PromptOption<'a> {
 
 impl<'a> PromptOption<'a> {
   fn with_name(name: &str) -> PromptOption{
-    PromptOption { name: name, help: None, short_name: None}
+    PromptOption { name, help: None, short_name: None}
   }
 
   fn help(mut self, help: &'a str) -> Self{
@@ -176,44 +175,92 @@ impl<'a> PromptOption<'a> {
   }
 }
 
+#[derive(Default, Clone)]
+struct Options{
+  show_ast: bool
+}
+
 pub fn start(){
   main_loop();
 }
 
 fn main_loop(){
-
   let prompt = Prompt::new()
-                .option(PromptOption::with_name("type")
-                  .short("t")
-                  .help("Displays the type of the expression provided "));
+    .option(PromptOption::with_name("type")
+      .short("t")
+      .help("Displays the type of the expression provided "))
+    .option(PromptOption::with_name("options")
+      .short("o")
+      .help("Allows you to choose various options for the REPL environment"))
+    .option(PromptOption::with_name("quit")
+      .short("q")
+      .help("Exits the REPL environment"));
 
-  let input = prompt.show();
+  let mut options = Options::default();
 
-  match input {
-    PromptResult::Input(expr) => {
-      let lexer = Lexer::new(expr.as_str());
-      let mut parser = Parser::new(lexer);
-      let mut printer = PrintVisitor::new();
-
-      let result = parser.parse()
-          .or_else(|_| {
-            parser.reset_lexer();
-            parser.parse_expr()
-          });
-
-      match result {
-        Ok(ast) => printer.visit(&ast),
-        Err(e) => println!("Error parsing: {:?}",e)
-      }
+  loop{
+    match prompt.show() {
+      PromptResult::Input(expr) => handle_expr(expr, &options),
+      PromptResult::Command(ref c, _) if *c == "QUIT".to_string() => break,
+      PromptResult::Command(ref c, _) if *c == "OPTIONS".to_string() => options = show_options(),
+      PromptResult::Command(c, rest) => handle_command(c, rest),
+      PromptResult::InvalidCommand => println!("invalid")
     }
-
-    PromptResult::Command(c, rest) =>  
-      match &*c {
-        "h" => println!("help"),
-        _ => println!("Other")
-      }
-    
-    PromptResult::InvalidCommand => println!("invalid")
   }
 }
 
+fn handle_expr(expr: String, options: &Options){
+  let lexer = Lexer::new(expr.as_str());
+  let mut parser = Parser::new(lexer);
+  let mut printer = PrintVisitor::new();
+
+  let result = parser.parse()
+    .or_else(|_| {
+      parser.reset_lexer();
+      parser.parse_expr()
+    });
+
+  match result {
+    Ok(ast) => {
+      if options.show_ast {
+        printer.visit(&ast)
+      }
+    },
+    Err(e) => println!("Error parsing: {:?}",e)
+  }
+}
+
+fn handle_command(command: String, rest: Option<String>){
+  match &*command {
+    "HELP" => println!("help"),
+    "TYPE" => println!("type"),
+    _ => println!("Other")
+  }
+}
+
+fn show_options() -> Options{
+  let checkboxes = &[
+    "Show AST"
+  ];
+
+  let selections = Checkboxes::with_theme(&ColorfulTheme::default())
+    .with_prompt("Options")
+    .items(&checkboxes[..])
+    .interact()
+    .unwrap();
+
+  let mut options = Options::default();
+  {
+    let mut handlers = [
+      || options.show_ast = true
+    ];
+
+    if !selections.is_empty() {
+      for selection in selections {
+        handlers[selection]();
+      }
+    }
+  }
+
+  options
+}

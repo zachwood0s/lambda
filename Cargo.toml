@@ -6,3 +6,4 @@ authors = ["zachwood0s <zach@hayzak.com>"]
 [dependencies]
 clap = "~2.33"
 colored = "1.7"
+dialoguer = "0.4.0"
