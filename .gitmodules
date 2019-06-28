@@ -1,3 +1,0 @@
-[submodule "crates\\dialoguer"]
-	path = crates\\dialoguer
-	url = https://github.com/zachwood0s/dialoguer.git
