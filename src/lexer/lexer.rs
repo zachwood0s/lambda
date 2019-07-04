@@ -49,6 +49,10 @@ impl<'a> Lexer<'a>{
         }
     }
 
+    pub fn is_empty(&mut self) -> bool{
+        self.peek_char().is_none()
+    }
+
     fn skip_whitespace(&mut self){
         while let Some(&c) = self.peek_char(){
             if !c.is_whitespace(){

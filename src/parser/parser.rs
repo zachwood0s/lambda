@@ -3,7 +3,10 @@ use lexer::Token;
 use parser::ParseNode;
 use parser::Type;
 use parser::GrammarItem;
+use errors::error_index::{Error};
 
+pub type ParseError = Error;
+pub type ParseResult = Result<ParseNode, ParseError>;
 
 pub struct Parser<'a>{
     lexer: Lexer<'a>
@@ -18,17 +21,18 @@ impl<'a> Parser<'a>{
         self.lexer.reset();
     }
 
-    pub fn parse(&mut self) -> Result<ParseNode, i32>{
+    pub fn parse(&mut self) -> ParseResult{
         let mut assignments: Vec<ParseNode> = Vec::new();
         while let Ok(assign) = self.parse_toplevel_assignment() {
             assignments.push(assign);
         }
-        match self.lexer.next_token() {
+        let tok = self.lexer.next_token();
+        match tok {
             Token::EOF => Ok(ParseNode::new(
                 GrammarItem::Program(assignments),
                 Type::Unknown
             )),
-            _ => Err(0)     //Expected EOF  
+            _ => Err(Error::ExpectedEOF(tok))
         }
         /*
         self.parse_toplevel_assignment().and_then(
@@ -40,7 +44,7 @@ impl<'a> Parser<'a>{
         */
     }
 
-    pub fn parse_toplevel_assignment(&mut self) -> Result<ParseNode, i32>{
+    pub fn parse_toplevel_assignment(&mut self) -> ParseResult{
         let tok = self.lexer.next_token();
         match tok {
             Token::LIdent(id) => {
@@ -52,58 +56,62 @@ impl<'a> Parser<'a>{
                     )),
                 )
             },
-            _ => Err(7)
+            _ => Err(Error::ExpectedToken(Token::LIdent("".to_string()), tok))
         }
     }
-    
 
-    pub fn parse_expr(&mut self) -> Result<ParseNode, i32>{
+    pub fn parse_expr(&mut self) -> ParseResult{
         self.parse_base_expr().and_then(
             |expr| self.parse_expr_prime(expr)
         )
     }
 
-    fn parse_base_expr(&mut self) -> Result<ParseNode, i32>{
+    pub fn is_empty(&mut self) -> bool {
+        self.lexer.is_empty()
+    }
+
+    fn parse_base_expr(&mut self) -> ParseResult{
         let tok = self.lexer.next_token();
         match tok {
             Token::LParen => self.parse_paren_expr(),
             Token::LIdent(id) => self.parse_identifier_expr(id),
             Token::Integer(s) => self.parse_literal_int(s),
             Token::Backslash => self.parse_abstraction_expr(),
-            Token::Illegal => Err(5),   //Illegal token
-            Token::EOF => Err(6),       //Unexpected EOF
-            _ => {                      
-                self.lexer.put_back(tok);
-                Err(1)
+            Token::Illegal => Err(Error::IllegalToken(tok)),
+            Token::EOF => Err(Error::UnexpectedEOF),
+            _ => {
+                self.lexer.put_back(tok.clone());
+                Err(Error::IllegalToken(tok))
             }
         }
     }
 
-    fn parse_paren_expr(&mut self) -> Result<ParseNode, i32>{
+    fn parse_paren_expr(&mut self) -> ParseResult{
         self.parse_expr().and_then(
             |expr| {
                 let tok = self.lexer.next_token();
                 match tok {
                     Token::RParen => Ok(expr),
-                    _ => Err(2)         //Expected right paren
+                    _ => Err(Error::ExpectedToken(Token::RParen, tok))
                 }
             }
         )
     }
 
-    fn parse_literal_int(&mut self, num_string: String) -> Result<ParseNode, i32>{
+    fn parse_literal_int(&mut self, num_string: String) -> ParseResult{
         match num_string.parse() {
             Ok(num) => Ok(ParseNode::new(GrammarItem::LiteralInt(num), Type::Unknown)),
-            Err(_) => Err(8)
+            Err(_) => Err(Error::IntegerParseError)
         }
     }
 
-    fn parse_identifier_expr(&mut self, id: String) -> Result<ParseNode, i32>{
+    fn parse_identifier_expr(&mut self, id: String) -> ParseResult{
         Ok(ParseNode::new(GrammarItem::Variable(id), Type::Unknown))
     }
 
-    fn parse_abstraction_expr(&mut self) -> Result<ParseNode, i32>{
-        match self.lexer.next_token() {
+    fn parse_abstraction_expr(&mut self) -> ParseResult{
+        let tok = self.lexer.next_token();
+        match tok {
             Token::LIdent(id) => {
                 let t = self.parse_type()?;
                 self.consume(Token::Dot)?;  
@@ -112,15 +120,15 @@ impl<'a> Parser<'a>{
                         GrammarItem::Abstraction(id, Box::new(expr)), t))
                 )
             }
-            _ => Err(3)     //Expected identifier
+            _ => Err(Error::ExpectedToken(Token::LIdent("".to_string()), tok))     //Expected identifier
         }
     }
 
-    fn parse_type(&mut self) -> Result<Type, i32> {
+    fn parse_type(&mut self) -> Result<Type, ParseError> {
         Ok(Type::Unknown)
     }
 
-    fn parse_expr_prime(&mut self, left: ParseNode) -> Result<ParseNode, i32>{
+    fn parse_expr_prime(&mut self, left: ParseNode) -> ParseResult{
         let tok = self.lexer.next_token();
         match tok {
             Token::LParen | Token::Backslash | Token::LIdent(_) | Token::Integer(_) => {
@@ -139,12 +147,12 @@ impl<'a> Parser<'a>{
         }
     }
 
-    fn consume(&mut self, tok : Token) -> Result<Token, i32> {
+    fn consume(&mut self, tok : Token) -> Result<Token, ParseError> {
         let new_tok = self.lexer.next_token();
         if new_tok == tok {
             Ok(new_tok)
         } else {
-            Err(4)      //Expected token tok
+            Err(Error::ExpectedToken(tok, new_tok))
         }
     }
 }
@@ -159,6 +167,32 @@ impl<'a> Parser<'a>{
  *  : expr expr'
  *  | $
  */
+
+#[test]
+fn parse_variable(){
+    let input = r#"a"#;
+    let lexer = Lexer::new(input);
+    let mut parser = Parser::new(lexer);
+    let node = parser.parse_expr();
+
+    assert_eq!(Ok(ParseNode::new(
+        GrammarItem::Variable("a".to_string()),
+        Type::Unknown
+    )), node);
+}
+
+#[test]
+fn parse_literal_int(){
+    let input = r#"1234567890"#;
+    let lexer = Lexer::new(input);
+    let mut parser = Parser::new(lexer);
+    let node = parser.parse_expr();
+
+    assert_eq!(Ok(ParseNode::new(
+        GrammarItem::LiteralInt(1234567890),
+        Type::Unknown
+    )), node);
+}
 
 #[test]
 fn parse_expr_test_application(){
@@ -250,7 +284,7 @@ fn parse_expr_test_error_2(){
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let node = parser.parse_expr();
-    assert_eq!(Err(2), node);
+    assert_eq!(Err(Error::ExpectedToken(Token::RParen, Token::EOF)), node);
 }
 
 #[test]
@@ -259,7 +293,7 @@ fn parse_expr_test_error_3(){
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let node = parser.parse_expr();
-    assert_eq!(Err(3), node);
+    assert_eq!(Err(Error::ExpectedToken(Token::LIdent("".to_string()), Token::Dot)), node);
 }
 
 #[test]
@@ -268,7 +302,7 @@ fn parse_expr_test_error_4(){
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let node = parser.parse_expr();
-    assert_eq!(Err(4), node);
+    assert_eq!(Err(Error::ExpectedToken(Token::Dot, Token::LParen)), node);
 }
 
 #[test]
@@ -277,7 +311,7 @@ fn parse_expr_test_error_5(){
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let node = parser.parse_expr();
-    assert_eq!(Err(5), node);
+    assert_eq!(Err(Error::IllegalToken(Token::Illegal)), node);
 }
 
 #[test]
@@ -286,5 +320,5 @@ fn parse_expr_test_error_6(){
     let lexer = Lexer::new(input);
     let mut parser = Parser::new(lexer);
     let node = parser.parse_expr();
-    assert_eq!(Err(6), node);
+    assert_eq!(Err(Error::UnexpectedEOF), node);
 }

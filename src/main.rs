@@ -8,6 +8,7 @@ use clap::{Arg, App};
 pub mod lexer;
 pub mod parser;
 pub mod repl;
+pub mod errors;
 
 arg_enum!{
     enum Mode{
